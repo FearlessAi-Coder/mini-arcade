@@ -1,0 +1,17 @@
+# Logs
+npm-debug.log*
+
+# Dependency directories
+node_modules/
+dist/
+.vite/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
