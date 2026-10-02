@@ -24,7 +24,6 @@ const gameMeta: Record<GameKey, { title: string; description: string }> = {
   guess: { title: 'Number Guess', description: 'Guess the hidden number from 1 to 100.' },
 };
 
-const CELL_COUNT = 9;
 const INITIAL_SNAKE = [
   { x: 5, y: 5 },
   { x: 4, y: 5 },
@@ -34,6 +33,29 @@ const INITIAL_SNAKE = [
 function App() {
   const [activeGame, setActiveGame] = useState<GameKey>('snake');
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const playTone = (frequency: number, duration = 140) => {
+    if (!soundEnabled || typeof window === 'undefined' || !('AudioContext' in window || 'webkitAudioContext' in window)) return;
+
+    const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const audio = new AudioCtor();
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+
+    oscillator.type = 'square';
+    oscillator.frequency.value = frequency;
+    gain.gain.value = 0.03;
+
+    oscillator.connect(gain);
+    gain.connect(audio.destination);
+
+    oscillator.start();
+    setTimeout(() => {
+      oscillator.stop();
+      audio.close();
+    }, duration);
+  };
 
   return (
     <div className="app-shell">
@@ -45,6 +67,10 @@ function App() {
             <h1>Mini Arcade</h1>
           </div>
         </div>
+
+        <button className="sound-toggle" onClick={() => setSoundEnabled((prev) => !prev)}>
+          {soundEnabled ? '🔊 Sound on' : '🔇 Sound off'}
+        </button>
 
         <div className="nav-panel">
           {Object.entries(gameMeta).map(([key, meta]) => (
@@ -74,19 +100,19 @@ function App() {
         </div>
 
         <div className="game-body">
-          {activeGame === 'snake' && <SnakeGame setGameResult={setGameResult} />}
-          {activeGame === 'tictactoe' && <TicTacToeGame setGameResult={setGameResult} />}
-          {activeGame === 'memory' && <MemoryGame setGameResult={setGameResult} />}
-          {activeGame === 'whack' && <WhackGame setGameResult={setGameResult} />}
-          {activeGame === 'rps' && <RpsGame setGameResult={setGameResult} />}
-          {activeGame === 'guess' && <GuessGame setGameResult={setGameResult} />}
+          {activeGame === 'snake' && <SnakeGame setGameResult={setGameResult} playTone={playTone} />}
+          {activeGame === 'tictactoe' && <TicTacToeGame setGameResult={setGameResult} playTone={playTone} />}
+          {activeGame === 'memory' && <MemoryGame setGameResult={setGameResult} playTone={playTone} />}
+          {activeGame === 'whack' && <WhackGame setGameResult={setGameResult} playTone={playTone} />}
+          {activeGame === 'rps' && <RpsGame setGameResult={setGameResult} playTone={playTone} />}
+          {activeGame === 'guess' && <GuessGame setGameResult={setGameResult} playTone={playTone} />}
         </div>
       </main>
     </div>
   );
 }
 
-function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function SnakeGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [snake, setSnake] = useState(INITIAL_SNAKE);
   const [food, setFood] = useState({ x: 8, y: 3 });
   const [dir, setDir] = useState({ x: 1, y: 0 });
@@ -104,7 +130,6 @@ function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => v
 
       const nextDir = map[event.key];
       if (!nextDir) return;
-
       setDir((current) => {
         if (Math.abs(current.x + nextDir.x) === 0 && Math.abs(current.y + nextDir.y) === 0) {
           return current;
@@ -130,6 +155,7 @@ function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => v
         if (hitsWall || hitsSelf) {
           setIsRunning(false);
           setGameResult({ title: 'Game Over', description: `You scored ${score}.`, status: 'lose' });
+          playTone(120, 220);
           return current;
         }
 
@@ -137,6 +163,7 @@ function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => v
 
         if (nextHead.x === food.x && nextHead.y === food.y) {
           setScore((s) => s + 10);
+          playTone(420, 80);
           setFood({
             x: Math.floor(Math.random() * 12),
             y: Math.floor(Math.random() * 12),
@@ -150,7 +177,7 @@ function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => v
     }, 180);
 
     return () => clearInterval(timer);
-  }, [dir, food, isRunning, score, setGameResult]);
+  }, [dir, food, isRunning, score, setGameResult, playTone]);
 
   const reset = () => {
     setSnake(INITIAL_SNAKE);
@@ -183,7 +210,7 @@ function SnakeGame({ setGameResult }: { setGameResult: (result: GameResult) => v
   );
 }
 
-function TicTacToeGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function TicTacToeGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [board, setBoard] = useState<string[]>(Array(9).fill(''));
   const [isXTurn, setIsXTurn] = useState(true);
 
@@ -213,15 +240,18 @@ function TicTacToeGame({ setGameResult }: { setGameResult: (result: GameResult) 
     if (!winner && board.some((cell) => cell === '')) return;
     if (!winner) {
       setGameResult({ title: 'Draw', description: 'No winner this round.', status: 'draw' });
+      playTone(250, 150);
       return;
     }
 
     if (winner === 'X') {
       setGameResult({ title: 'You win!', description: 'You completed a line.', status: 'win' });
+      playTone(540, 160);
     } else {
       setGameResult({ title: 'You lose!', description: 'The computer wins this round.', status: 'lose' });
+      playTone(180, 220);
     }
-  }, [winner, board, setGameResult]);
+  }, [winner, board, setGameResult, playTone]);
 
   const makeMove = (index: number) => {
     if (board[index] || winner) return;
@@ -229,6 +259,7 @@ function TicTacToeGame({ setGameResult }: { setGameResult: (result: GameResult) 
     nextBoard[index] = 'X';
     setBoard(nextBoard);
     setIsXTurn(false);
+    playTone(370, 110);
 
     if (winningLine(nextBoard, 'X')) {
       return;
@@ -245,6 +276,7 @@ function TicTacToeGame({ setGameResult }: { setGameResult: (result: GameResult) 
       finalBoard[move] = 'O';
       setBoard(finalBoard);
       setIsXTurn(true);
+      playTone(280, 100);
     }, 300);
   };
 
@@ -282,7 +314,7 @@ function winningLine(board: string[], player: string) {
   return combos.some((combo) => combo.every((index) => board[index] === player));
 }
 
-function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function MemoryGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [cards, setCards] = useState<MemoryCard[]>(() =>
     Array.from({ length: 8 }, (_, index) => ({
       id: index,
@@ -306,6 +338,7 @@ function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => 
           card.id === firstCard.id || card.id === secondCard.id ? { ...card, matched: true, flipped: true } : card,
         ),
       );
+      playTone(520, 100);
       setFlipped([]);
     } else {
       const timeout = setTimeout(() => {
@@ -315,17 +348,19 @@ function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => 
           ),
         );
         setFlipped([]);
+        playTone(180, 130);
       }, 800);
       return () => clearTimeout(timeout);
     }
-  }, [flipped, cards]);
+  }, [flipped, cards, playTone]);
 
   useEffect(() => {
     const isComplete = cards.every((card) => card.matched);
     if (isComplete && cards.length) {
       setGameResult({ title: 'You win!', description: 'All pairs matched.', status: 'win' });
+      playTone(640, 180);
     }
-  }, [cards, setGameResult]);
+  }, [cards, setGameResult, playTone]);
 
   const handleCardClick = (index: number) => {
     if (cards[index].matched || cards[index].flipped || flipped.length === 2) return;
@@ -336,6 +371,7 @@ function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => 
 
     setCards(nextCards);
     setFlipped((current) => [...current, index]);
+    playTone(360, 90);
   };
 
   const reset = () => {
@@ -355,7 +391,7 @@ function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => 
     <GameCard title="Memory Match" subtitle="Match all pairs" action={<button onClick={reset}>Reset</button>}>
       <div className="memory-grid">
         {cards.map((card, index) => (
-          <button key={card.id + '-' + index} className="memory-card" onClick={() => handleCardClick(index)}>
+          <button key={`${card.id}-${index}`} className="memory-card" onClick={() => handleCardClick(index)}>
             {card.flipped || card.matched ? card.value : '?'}
           </button>
         ))}
@@ -364,7 +400,7 @@ function MemoryGame({ setGameResult }: { setGameResult: (result: GameResult) => 
   );
 }
 
-function WhackGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function WhackGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [moleIndex, setMoleIndex] = useState<number>(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
@@ -385,7 +421,10 @@ function WhackGame({ setGameResult }: { setGameResult: (result: GameResult) => v
       setTimeLeft((current) => {
         if (current <= 1) {
           setActive(false);
-          setGameResult({ title: 'Time Up!', description: `You scored ${score}.`, status: score >= 10 ? 'win' : 'lose' });
+          const finalStatus = score >= 10 ? 'win' : 'lose';
+          const finalTitle = score >= 10 ? 'You win!' : 'Time Up!';
+          setGameResult({ title: finalTitle, description: `You scored ${score}.`, status: finalStatus as 'win' | 'lose' });
+          playTone(finalStatus === 'win' ? 500 : 180, 180);
           return 0;
         }
         return current - 1;
@@ -393,12 +432,13 @@ function WhackGame({ setGameResult }: { setGameResult: (result: GameResult) => v
     }, 1000);
 
     return () => clearInterval(clock);
-  }, [active, score, setGameResult]);
+  }, [active, score, setGameResult, playTone]);
 
   const hitMole = (index: number) => {
     if (!active || index !== moleIndex) return;
     setScore((s) => s + 1);
     setMoleIndex(-1);
+    playTone(620, 90);
   };
 
   const reset = () => {
@@ -422,7 +462,7 @@ function WhackGame({ setGameResult }: { setGameResult: (result: GameResult) => v
   );
 }
 
-function RpsGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function RpsGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [playerPick, setPlayerPick] = useState<string>('');
   const [computerPick, setComputerPick] = useState<string>('');
   const [score, setScore] = useState({ player: 0, computer: 0 });
@@ -433,6 +473,7 @@ function RpsGame({ setGameResult }: { setGameResult: (result: GameResult) => voi
     const computer = picks[Math.floor(Math.random() * picks.length)];
     setPlayerPick(pick);
     setComputerPick(computer);
+    playTone(420, 100);
 
     if (pick === computer) {
       setGameResult({ title: 'Draw', description: 'Same choice. No points.', status: 'draw' });
@@ -447,9 +488,11 @@ function RpsGame({ setGameResult }: { setGameResult: (result: GameResult) => voi
     if (win) {
       setScore((current) => ({ ...current, player: current.player + 1 }));
       setGameResult({ title: 'You win!', description: `You picked ${pick} and beat ${computer}.`, status: 'win' });
+      playTone(560, 120);
     } else {
       setScore((current) => ({ ...current, computer: current.computer + 1 }));
       setGameResult({ title: 'You lose!', description: `Computer picked ${computer}.`, status: 'lose' });
+      playTone(200, 150);
     }
   };
 
@@ -479,7 +522,7 @@ function RpsGame({ setGameResult }: { setGameResult: (result: GameResult) => voi
   );
 }
 
-function GuessGame({ setGameResult }: { setGameResult: (result: GameResult) => void }) {
+function GuessGame({ setGameResult, playTone }: { setGameResult: (result: GameResult) => void; playTone: (frequency: number, duration?: number) => void }) {
   const [target, setTarget] = useState(Math.floor(Math.random() * 100) + 1);
   const [guess, setGuess] = useState('');
   const [message, setMessage] = useState('');
@@ -494,11 +537,13 @@ function GuessGame({ setGameResult }: { setGameResult: (result: GameResult) => v
     if (value === target) {
       setGameResult({ title: 'You win!', description: `Correct! The number was ${target}.`, status: 'win' });
       setMessage('Correct!');
+      playTone(620, 180);
       return;
     }
 
     setMessage(value < target ? 'Too low!' : 'Too high!');
     setGameResult({ title: 'Keep guessing', description: 'Not quite yet.', status: 'lose' });
+    playTone(value < target ? 220 : 180, 100);
   };
 
   const reset = () => {
